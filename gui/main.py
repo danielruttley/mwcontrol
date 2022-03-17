@@ -3,6 +3,7 @@ import sys
 import os
 import numpy as np
 import threading
+import time
 os.system("color")
 import inspect
 
@@ -16,6 +17,7 @@ from qtpy.QtGui import QIcon,QIntValidator,QDoubleValidator,QColor
 
 from . import qrc_resources
 from .networking.client import PyClient
+from .networking.server import PyServer
 from .strtypes import error, warning, info
 
 from mwcomm import Communicator
@@ -26,12 +28,14 @@ if __name__ == '__main__':
 class MainWindow(QMainWindow):
     def __init__(self,dev_mode=False):
         super().__init__()
-        if dev_mode:
-            self.tcp_client = PyClient(host='localhost',port=9000,name='mwcontrol')
-        else:
-            self.tcp_client = PyClient(host='129.234.190.164',port=9000,name='mwcontrol')
+        # self.tcp_client = PyClient(host='129.234.190.164',port=8631,name='mwcontrol')
+        self.tcp_client = PyClient(host='localhost',port=8631,name='MWG')
         self.tcp_client.start()
-        self.last_MWparam_folder = '.'
+
+        self.tcp_server = PyServer(host='', port=8632, name='MWG recv') # MW generator resumes PyDex when loaded
+        self.tcp_server.start()
+
+        self.last_MWGparam_folder = '.'
         self.num_freqs = 0
         self.comm = Communicator()
 
@@ -61,6 +65,8 @@ class MainWindow(QMainWindow):
         # self._createContextMenu()
         self._connectActions()
 
+        self.load_params_file('./gui/default_MWGparam.txt')
+
     def _createNumberRowsBox(self):
         layout = QFormLayout()
         self.num_rows_box = QLineEdit()
@@ -80,10 +86,10 @@ class MainWindow(QMainWindow):
 
     def _createActions(self):
         self.loadParamsAction = QAction(self)
-        self.loadParamsAction.setText("Load MWparam")
+        self.loadParamsAction.setText("Load MWGparam")
 
         self.saveParamsAction = QAction(self)
-        self.saveParamsAction.setText("Save MWparam")
+        self.saveParamsAction.setText("Save MWGparam")
 
     def _createMenuBar(self):
         menuBar = self.menuBar()
@@ -99,6 +105,7 @@ class MainWindow(QMainWindow):
         self.loadParamsAction.triggered.connect(self.load_params_file_dialogue)
         self.saveParamsAction.triggered.connect(self.save_params_file_dialogue)
         self.send_button.pressed.connect(self.send_data)
+        self.tcp_client.textin.connect(self.recieved_tcp_msg)
 
     def get_num_freqs(self):
         return len(self.data[list(self.data.keys())[0]])
@@ -110,7 +117,7 @@ class MainWindow(QMainWindow):
         except ValueError:
             pass
         else:
-            print(num_rows)
+            # print(num_rows)
             self.num_freqs = len(self.data[list(self.data.keys())[0]])
             if num_rows > self.num_freqs:
                  for key in self.data.keys():
@@ -152,7 +159,7 @@ class MainWindow(QMainWindow):
         except ValueError as e:
             error('All cells must be populated with float values. Data will be left unchanged.',e)
         self.populate_table()
-        print(self.data)
+        # print(self.data)
 
     def send_data(self):
         num_freqs = self.get_num_freqs()
@@ -162,13 +169,7 @@ class MainWindow(QMainWindow):
         elif num_freqs == 1:
             freq = self.data['freq (MHz)'][0]
             power = self.data['amp (dBm)'][0]
-            send_str = 'F1 {} HZ P1 {} DM CF1'.format(int(freq*1e6),int(power))
-            send_str = 'CF0 {} HZ L0 {} DM'.format(int(freq*1e6),int(power))
-            # self.comm.write(':FREQ:MODE CW')
-            # send_str = ':FREQ {} MHz'.format(freq)
-            # self.comm.write(send_str)
-            # send_str = ':POW {} dBm'.format(power)
-            self.comm.write(send_str)
+            send_str = 'CF0 {:.7f} GH L0 {:.2f} DM'.format(freq/1e3,power)
             
         else:
             freqs_str = ''
@@ -178,49 +179,18 @@ class MainWindow(QMainWindow):
                 powers_str += '{:.2f} DM, '.format(power)
             freqs_str = freqs_str[:-2]
             powers_str = powers_str[:-2]
-            data_str = 'LF {} LP {} '.format(freqs_str,powers_str)
-            
-            #Note that these can't all be send together otherwise a timeout error occurs and nothing happens on the MW gen.
-            # self.comm.write('CF0 6 GZ L0 8 DM') # go back into CW mode whilst the params are being loaded. Seems to prevent some crashes on the gen.
-            
-            
-            # self.comm.write('LST')
-            # self.comm.write('EXT')
-            # self.comm.write('ELN0') # activate list mode, select list 0, index 0000
-            # self.comm.write('ELI0000') # activate list mode, select list 0, index 0000
-            # self.comm.write('LIB0000') # set list playback indicies start=0000, end=table_len-1
-            # self.comm.write('LIE{:0>4}'.format(num_freqs-1)) # set list playback indicies start=0000, end=table_len-1
-            # self.comm.write('LF {}'.format(freqs_str)) # populate table
-            # self.comm.write('LP {}'.format(powers_str)) # populate table
-            # self.comm.write('LEA') # calculate list
-            # self.comm.write('MNT') # change trigger mode to manual so that each TTL moves onto the next freq
             
             send_str = ('LST EXT ELN0 ELI0000 LIB0000 LIE{:0>4} LF {} LP {} LEA MNT'.format(num_freqs-1,freqs_str,powers_str))
-            self.comm.write(send_str,timeout=10000000)
-            
-            info('Frequencies loaded into microwave generator.')
-            # print(send_str)
-            # send_str = 'LST ELN0 ELI0000 LIB0000 LIE0002 LF 3000000001 HZ, 6000000001 HZ, 5000000001 HZ LP 8 DM, 5 DM, 2 DM MNT LEA'
-            
-            # freqs_str = ''
-            # powers_str = ''
-            # for freq, power in zip(self.data['freq (MHz)'],self.data['amp (dBm)']):
-            #     freqs_str += '{} Hz, '.format(int(freq*1e6))
-            #     powers_str += '{} dBm, '.format(int(power))
-            # freqs_str = freqs_str[:-2]
-            # powers_str = powers_str[:-2]
-            # # data_str = 'LF {} LP {} '.format(freqs_str,powers_str)
-            
-            # self.comm.write(':TRIG:SOUR HOLD')
-            # self.comm.write(':FREQ:MODE LIST')
-            # self.comm.write(':LIST:IND 0')
-            # self.comm.write(':LIST:FREQ {}'.format(freqs_str))
-            # self.comm.write(':LIST:POW {}'.format(powers_str))
-            # self.comm.write(':LIST:STAR 0')
-            # self.comm.write(':LIST:STOP {}'.format(num_freqs-1))
 
-            # print(send_str)
-            # self.comm.write(send_str)
+        self.comm.write(send_str,timeout=10000000)
+
+        sleep_time = self.get_num_freqs()/10
+        if sleep_time < 2:
+            sleep_time = 2
+        info('{} tones sent. Sleeping for {:.1f}s to allow for MWG calculations.'.format(self.get_num_freqs(),sleep_time))
+        time.sleep(sleep_time)
+
+        info('Calculations probably complete. Unlocking controls.')
 
     def evaluate_freqs(self):
         try:
@@ -248,16 +218,17 @@ class MainWindow(QMainWindow):
 
     def save_params_file(self,filename):
         msg = self.data
+        os.makedirs(os.path.dirname(filename),exist_ok=True)
         with open(filename, 'w') as f:
             f.write(str(msg))
-        info('MWparams saved to "{}"'.format(filename))
+        info('MWGparam saved to "{}"'.format(filename))
 
     def save_params_file_dialogue(self):
-        filename = QFileDialog.getSaveFileName(self, 'Save MWparam',self.last_MWparam_folder,"Text documents (*.txt)")[0]
+        filename = QFileDialog.getSaveFileName(self, 'Save MWGparam',self.last_MWGparam_folder,"Text documents (*.txt)")[0]
         if filename != '':
             self.save_params_file(filename)
-            self.last_MWparam_folder = os.path.dirname(filename)
-            print(self.last_MWparam_folder)
+            self.last_MWGparam_folder = os.path.dirname(filename)
+            # print(self.last_MWGparam_folder)
 
     def recieved_tcp_msg(self,msg):
         info('TCP message recieved: "'+msg+'"')
@@ -273,7 +244,7 @@ class MainWindow(QMainWindow):
         elif command == 'set_data':
             for update in eval(arg):
                     ind,arg_name,arg_val = update
-                    info('Updating frequency {:0>4} with {} = {}'.format(ind,arg_name,arg_val))
+                    info('Updating tone {:0>4} with {} = {}'.format(ind,arg_name,arg_val))
                     try:
                         arg_val = float(arg_val)
                     except ValueError as e:
@@ -283,15 +254,17 @@ class MainWindow(QMainWindow):
                             self.data[arg_name][ind] = arg_val
                             self.populate_table()
                         except IndexError as e: 
-                            error('Frequency {:0>4} does not exist\n'.format(ind),e)
+                            error('Tone {:0>4} does not exist\n'.format(ind),e)
                         except KeyError as e: 
                             error('Argument {} does not exist\n'.format(arg_name),e)
-    
+            self.send_data()
+            self.tcp_server.add_message(1,'go'*1000)
+
     def load_params_file_dialogue(self):
-        filename = QFileDialog.getOpenFileName(self, 'Load MWparam',self.last_MWparam_folder,"Text documents (*.txt)")[0]
+        filename = QFileDialog.getOpenFileName(self, 'Load MWGparam',self.last_MWGparam_folder,"Text documents (*.txt)")[0]
         if filename != '':
             self.load_params_file(filename)
-            self.last_MWparam_folder = os.path.dirname(filename)
+            self.last_MWGparam_folder = os.path.dirname(filename)
 
     def load_params_file(self,filename):
         try:
@@ -303,10 +276,12 @@ class MainWindow(QMainWindow):
         try:
             msg = eval(msg)
             self.data = msg
+            self.num_rows_box.setText(str(self.get_num_freqs()))
             self.populate_table()
-            info('MWparam and holograms loaded from "{}"'.format(filename))
+            info('MWGparam loaded from "{}"'.format(filename))
         except (SyntaxError, IndexError) as e:
             error('Failed to evaluate file "{}". Is the format correct?'.format(filename),e)
+        self.send_data()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
