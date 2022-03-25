@@ -28,8 +28,8 @@ if __name__ == '__main__':
 class MainWindow(QMainWindow):
     def __init__(self,dev_mode=False):
         super().__init__()
-        # self.tcp_client = PyClient(host='129.234.190.164',port=8631,name='mwcontrol')
-        self.tcp_client = PyClient(host='localhost',port=8631,name='MWG')
+        self.tcp_client = PyClient(host='129.234.190.164',port=8631,name='mwcontrol')
+        # self.tcp_client = PyClient(host='localhost',port=8631,name='MWG')
         self.tcp_client.start()
 
         self.tcp_server = PyServer(host='', port=8632, name='MWG recv') # MW generator resumes PyDex when loaded
@@ -42,7 +42,7 @@ class MainWindow(QMainWindow):
         self.data = {'freq (MHz)': [6000],
                      'amp (dBm)': [8]}
 
-        self.setWindowTitle("microwave control")
+        self.setWindowTitle("MWG control")
         self.layout = QVBoxLayout()
 
         widget = QWidget()
@@ -184,7 +184,7 @@ class MainWindow(QMainWindow):
 
         self.comm.write(send_str,timeout=10000000)
 
-        sleep_time = self.get_num_freqs()/10
+        sleep_time = self.get_num_freqs()/100
         if sleep_time < 2:
             sleep_time = 2
         info('{} tones sent. Sleeping for {:.1f}s to allow for MWG calculations.'.format(self.get_num_freqs(),sleep_time))
@@ -218,7 +218,10 @@ class MainWindow(QMainWindow):
 
     def save_params_file(self,filename):
         msg = self.data
-        os.makedirs(os.path.dirname(filename),exist_ok=True)
+        try:
+            os.makedirs(os.path.dirname(filename),exist_ok=True)
+        except FileExistsError as e:
+            warning('FileExistsError thrown when saving MWGParams file',e)
         with open(filename, 'w') as f:
             f.write(str(msg))
         info('MWGparam saved to "{}"'.format(filename))
