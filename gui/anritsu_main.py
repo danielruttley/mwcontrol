@@ -261,7 +261,8 @@ class MainWindow(QMainWindow):
         try:
             self.send_data()
         except AttributeError: # communicator/SynthHD object not created yet
-            info('Did not send data yet because object does not exist')
+            pass
+            # info('Did not send data yet because object does not exist')
 
 class AnritsuWindow(MainWindow):
     def __init__(self):
@@ -323,7 +324,13 @@ class WindfreakWindow(MainWindow):
         self.setWindowTitle(f"MWG control: Windfreak {self.com_port} Ch{['A','B'][self.channel]}")
         self.send_button.setText('send to Windfreak')
 
-        self.synth = SynthHD('COM19')
+        # self.data = {'Ch A: freq (MHz)': [6000],
+        #              'Ch A: amp (dBm)': [1],
+        #              'Ch B: freq (MHz)': [5000],
+        #              'Ch B: amp (dBm)': [0],} # change data to be 4 columns for channel A and channel B
+        # self.populate_table()
+
+        self.synth = SynthHD(self.com_port)
         self.synth.init()
 
         # # Set channel 0 power and frequency
