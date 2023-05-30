@@ -1,1 +1,2 @@
-from .main import MainWindow
+from .anritsu_main import AnritsuWindow
+from .windfreak_main import WindfreakWindow

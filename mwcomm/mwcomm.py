@@ -1,5 +1,6 @@
 """
-Defines the Communicator wrapper class that handles updates to the microwave generator.
+Defines the Communicator wrapper class that handles updates to the Anritsu
+microwave generator.
 """
 
 import numpy as np

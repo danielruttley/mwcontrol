@@ -20,13 +20,19 @@ from .networking.client import PyClient
 from .networking.server import PyServer
 from .strtypes import error, warning, info
 
-from mwcomm import Communicator
+
 
 if __name__ == '__main__':
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from mwcomm import Communicator
+from windfreak import SynthHD
+
 class MainWindow(QMainWindow):
-    def __init__(self,dev_mode=False):
+    def __init__(self,**kwargs):
+        """Initialise the main interface for the controller.
+        """
+
         super().__init__()
         self.tcp_client = PyClient(host='129.234.190.164',port=8631,name='mwcontrol')
         # self.tcp_client = PyClient(host='localhost',port=8631,name='MWG')
@@ -37,12 +43,10 @@ class MainWindow(QMainWindow):
 
         self.last_MWGparam_folder = '.'
         self.num_freqs = 0
-        self.comm = Communicator()
 
         self.data = {'freq (MHz)': [6000],
                      'amp (dBm)': [8]}
 
-        self.setWindowTitle("MWG control")
         self.layout = QVBoxLayout()
 
         widget = QWidget()
@@ -161,37 +165,6 @@ class MainWindow(QMainWindow):
         self.populate_table()
         # print(self.data)
 
-    def send_data(self):
-        num_freqs = self.get_num_freqs()
-        # print(self.comm.query('*IDN?'))
-        if num_freqs < 1:
-            print('no freqs!')
-        elif num_freqs == 1:
-            freq = self.data['freq (MHz)'][0]
-            power = self.data['amp (dBm)'][0]
-            send_str = 'CF0 {:.7f} GH L0 {:.2f} DM'.format(freq/1e3,power)
-            
-        else:
-            freqs_str = ''
-            powers_str = ''
-            for freq, power in zip(self.data['freq (MHz)'],self.data['amp (dBm)']):
-                freqs_str += '{:.7f} GH, '.format(freq/1e3)
-                powers_str += '{:.2f} DM, '.format(power)
-            freqs_str = freqs_str[:-2]
-            powers_str = powers_str[:-2]
-            
-            send_str = ('LST EXT ELN0 ELI0000 LIB0000 LIE{:0>4} LF {} LP {} LEA MNT'.format(num_freqs-1,freqs_str,powers_str))
-
-        self.comm.write(send_str,timeout=10000000)
-
-        sleep_time = self.get_num_freqs()/100
-        if sleep_time < 2:
-            sleep_time = 2
-        info('{} tones sent. Sleeping for {:.1f}s to allow for MWG calculations.'.format(self.get_num_freqs(),sleep_time))
-        time.sleep(sleep_time)
-
-        info('Calculations probably complete. Unlocking controls.')
-
     def evaluate_freqs(self):
         try:
             try:
@@ -284,7 +257,113 @@ class MainWindow(QMainWindow):
             info('MWGparam loaded from "{}"'.format(filename))
         except (SyntaxError, IndexError) as e:
             error('Failed to evaluate file "{}". Is the format correct?'.format(filename),e)
-        self.send_data()
+    
+        try:
+            self.send_data()
+        except AttributeError: # communicator/SynthHD object not created yet
+            pass
+            # info('Did not send data yet because object does not exist')
+
+class AnritsuWindow(MainWindow):
+    def __init__(self):
+        """Initialise the main interface for the controller if in Anritsu mode.
+        """    
+        super().__init__()
+
+        self.setWindowTitle(f"MWG control: Anritsu")
+        self.send_button.setText('send to Anritsu')
+        self.comm = Communicator()
+
+    def send_data(self):
+        num_freqs = self.get_num_freqs()
+        # print(self.comm.query('*IDN?'))
+        if num_freqs < 1:
+            print('no freqs!')
+        elif num_freqs == 1:
+            freq = self.data['freq (MHz)'][0]
+            power = self.data['amp (dBm)'][0]
+            send_str = 'CF0 {:.7f} GH L0 {:.2f} DM'.format(freq/1e3,power)
+            
+        else:
+            freqs_str = ''
+            powers_str = ''
+            for freq, power in zip(self.data['freq (MHz)'],self.data['amp (dBm)']):
+                freqs_str += '{:.7f} GH, '.format(freq/1e3)
+                powers_str += '{:.2f} DM, '.format(power)
+            freqs_str = freqs_str[:-2]
+            powers_str = powers_str[:-2]
+            
+            send_str = ('LST EXT ELN0 ELI0000 LIB0000 LIE{:0>4} LF {} LP {} LEA MNT'.format(num_freqs-1,freqs_str,powers_str))
+
+        self.comm.write(send_str,timeout=10000000)
+
+        sleep_time = self.get_num_freqs()/100
+        if sleep_time < 2:
+            sleep_time = 2
+        info('{} tones sent. Sleeping for {:.1f}s to allow for MWG calculations.'.format(self.get_num_freqs(),sleep_time))
+        time.sleep(sleep_time)
+
+        info('Calculations probably complete. Unlocking controls.')
+
+class WindfreakWindow(MainWindow):
+    def __init__(self,com_port='COM19',channel=0):
+        """Initialise the main interface for the controller if in Windfreak mode.
+
+        Parameters
+        ----------
+        com_port : str, optional
+            COM port to use to connect to the Windfreak, by default 'COM19'
+        channel : [0,1], optional
+            The channel to control on the Windfreak. Channel 0 = A, channel 
+            B= 1. By default 0
+        """    
+        super().__init__()
+
+        self.com_port = com_port
+        self.channel = 0
+        self.setWindowTitle(f"MWG control: Windfreak {self.com_port} Ch{['A','B'][self.channel]}")
+        self.send_button.setText('send to Windfreak')
+
+        # self.data = {'Ch A: freq (MHz)': [6000],
+        #              'Ch A: amp (dBm)': [1],
+        #              'Ch B: freq (MHz)': [5000],
+        #              'Ch B: amp (dBm)': [0],} # change data to be 4 columns for channel A and channel B
+        # self.populate_table()
+
+        self.synth = SynthHD(self.com_port)
+        self.synth.init()
+
+        # # Set channel 0 power and frequency
+        # synth[0].power = 10.
+        # synth[0].frequency = 101.e6
+
+        # # Enable channel 0 output
+        # synth[0].enable = True
+
+    def send_data(self):
+        num_freqs = self.get_num_freqs()
+        # print(self.comm.query('*IDN?'))
+        if num_freqs < 1:
+            print('no freqs!')
+        elif num_freqs == 1:
+            self.synth[self.channel].power = self.data['amp (dBm)'][0]
+            self.synth[self.channel].frequency = self.data['freq (MHz)'][0]*1e6    
+            self.synth[self.channel].enable = True       
+        else:
+            self.synth[self.channel].enable = False
+            self.synth[self.channel].sweep_type = 1
+            print('initial list',self.synth[self.channel].sweep_list)
+            list_string = ''
+            for index,(freq,amp) in enumerate(zip(self.data['freq (MHz)'],self.data['amp (dBm)'])):
+                list_string += f'L{index:02d}f{freq}L{index:02d}a{amp}'
+            print('list to send',list_string)
+            self.synth[self.channel].sweep_list = list_string
+            print('final list',self.synth[self.channel].sweep_list)
+            self.synth[self.channel].enable = True
+            self.synth[self.channel].sweep_direction = 1 # set to normal sweep direction
+            self.synth[self.channel].sweep_single = 1
+            
+            # self.synth[self.channel].enable = False
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
