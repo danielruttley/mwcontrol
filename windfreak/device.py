@@ -37,10 +37,16 @@ class SerialDevice:
         args = ((int(ar) if dt is bool else dt(ar)) for dt, ar in zip(dtype, args))
         ret = self._query(request.format(*args))
         dtype = dtype[-1]
+        print(attribute)
         if dtype is bool:
-            ret = int(ret)
+            try:
+                ret = int(ret)
+            except:
+                pass
             if ret not in (0, 1):
-                raise ValueError('Invalid return value \'{}\' for type bool.'.format(ret))
+                print('Invalid return value \'{}\' for type bool. Setting to 1.'.format(ret))
+                ret = 1
+                # raise ValueError('Invalid return value \'{}\' for type bool.'.format(ret))
         return dtype(ret)
 
     def _write(self, data):

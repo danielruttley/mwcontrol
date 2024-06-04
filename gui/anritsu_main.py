@@ -29,16 +29,27 @@ from mwcomm import Communicator
 from windfreak import SynthHD
 
 class MainWindow(QMainWindow):
-    def __init__(self,**kwargs):
+    def __init__(self, anritsu=False, **kwargs):
         """Initialise the main interface for the controller.
         """
+        try:
+            self.anritsu
+        except AttributeError:
+            self.anritsu = False
 
         super().__init__()
-        self.tcp_client = PyClient(host='129.234.190.164',port=8631,name='mwcontrol')
+        if self.anritsu:
+            self.tcp_client = PyClient(host='129.234.190.164',port=8634,name='mwcontrol (Anritsu)')
+            self.tcp_server = PyServer(host='', port=8635, name='MWG recv (Anritsu)') # MW generator resumes PyDex when loaded
+            info('Opened TCP client on port 8634 and TCP server on port 8635.')
+            warning('Ensure that Anritsu GPIB language is set to Native (not SCPI) for commands to be recognised!')
+        else:
+            self.tcp_client = PyClient(host='129.234.190.164',port=8631,name='mwcontrol')
+            self.tcp_server = PyServer(host='', port=8632, name='MWG recv') # MW generator resumes PyDex when loaded
+            info('Opened TCP client on port 8631 and TCP server on port 8632.')
         # self.tcp_client = PyClient(host='localhost',port=8631,name='MWG')
+        
         self.tcp_client.start()
-
-        self.tcp_server = PyServer(host='', port=8632, name='MWG recv') # MW generator resumes PyDex when loaded
         self.tcp_server.start()
 
         self.last_MWGparam_folder = '.'
@@ -95,11 +106,17 @@ class MainWindow(QMainWindow):
         self.saveParamsAction = QAction(self)
         self.saveParamsAction.setText("Save MWGparam")
 
+        self.restoreParamsAfterMultirunAction = QAction(self,checkable=True)
+        self.restoreParamsAfterMultirunAction.setText("Restore MWGparams after multirun")
+        self.restoreParamsAfterMultirunAction.setChecked(True)
+
     def _createMenuBar(self):
         menuBar = self.menuBar()
         mainMenu = menuBar.addMenu("Menu")
         mainMenu.addAction(self.loadParamsAction)
         mainMenu.addAction(self.saveParamsAction)
+        mainMenu.addSeparator()
+        mainMenu.addAction(self.restoreParamsAfterMultirunAction)
 
     def _connectActions(self):
         self.freqTable.itemChanged.connect(self.update_data)
@@ -216,10 +233,14 @@ class MainWindow(QMainWindow):
         elif command == 'save_all':
             self.save_params_file(arg)
         elif command == 'load_all':
-            self.load_params_file(arg)
+            if self.restoreParamsAfterMultirunAction.isChecked():
+                self.load_params_file(arg)
+            else:
+                info("Not restoring MWGparams because 'Restore MWGparams after multirun' is unchecked")
         elif command == 'set_data':
             for update in eval(arg):
-                    ind,arg_name,arg_val = update
+                    ind,arg_name,arg_val,_ = update
+                    ind = int(ind)
                     info('Updating tone {:0>4} with {} = {}'.format(ind,arg_name,arg_val))
                     try:
                         arg_val = float(arg_val)
@@ -267,7 +288,9 @@ class MainWindow(QMainWindow):
 class AnritsuWindow(MainWindow):
     def __init__(self):
         """Initialise the main interface for the controller if in Anritsu mode.
-        """    
+        """
+        self.anritsu = True
+
         super().__init__()
 
         self.setWindowTitle(f"MWG control: Anritsu")
@@ -282,7 +305,7 @@ class AnritsuWindow(MainWindow):
         elif num_freqs == 1:
             freq = self.data['freq (MHz)'][0]
             power = self.data['amp (dBm)'][0]
-            send_str = 'CF0 {:.7f} GH L0 {:.2f} DM'.format(freq/1e3,power)
+            send_str = 'F0 {:.7f} GH L0 {:.2f} DM'.format(freq/1e3,power)
             
         else:
             freqs_str = ''
