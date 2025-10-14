@@ -11,7 +11,7 @@ from .strtypes import error, warning, info
 
 class Communicator():
 
-    def __init__(self,ip='129.234.190.42'):
+    def __init__(self,ip='192.168.23.32'):
         """
         Parameters
         ----------

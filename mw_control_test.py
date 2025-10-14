@@ -2,13 +2,13 @@ import time
 # import easy_scpi as scpi
 
 # # Connect to an instrument
-# inst = scpi.Instrument('TCPIP0::129.234.190.42')
+# inst = scpi.Instrument('TCPIP0::192.168.23.32')
 # inst.sour.freq.cw(6000000000)
 
 import pyvisa
 rm = pyvisa.ResourceManager()
 # print(rm.list_resources())
-inst = rm.open_resource('TCPIP0::129.234.190.42::inst0::INSTR')
+inst = rm.open_resource('TCPIP0::192.168.23.32::inst0::INSTR')
 # inst.read_termination = '\r'
 # inst.write_termination = '\r'
 # inst.timeout = 10000

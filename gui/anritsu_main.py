@@ -39,12 +39,12 @@ class MainWindow(QMainWindow):
 
         super().__init__()
         if self.anritsu:
-            self.tcp_client = PyClient(host='129.234.190.164',port=8634,name='mwcontrol (Anritsu)')
+            self.tcp_client = PyClient(host='192.168.23.10',port=8634,name='mwcontrol (Anritsu)')
             self.tcp_server = PyServer(host='', port=8635, name='MWG recv (Anritsu)') # MW generator resumes PyDex when loaded
             info('Opened TCP client on port 8634 and TCP server on port 8635.')
             warning('Ensure that Anritsu GPIB language is set to Native (not SCPI) for commands to be recognised!')
         else:
-            self.tcp_client = PyClient(host='129.234.190.164',port=8631,name='mwcontrol')
+            self.tcp_client = PyClient(host='192.168.23.10',port=8631,name='mwcontrol')
             self.tcp_server = PyServer(host='', port=8632, name='MWG recv') # MW generator resumes PyDex when loaded
             info('Opened TCP client on port 8631 and TCP server on port 8632.')
         # self.tcp_client = PyClient(host='localhost',port=8631,name='MWG')

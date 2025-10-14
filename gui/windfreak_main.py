@@ -60,7 +60,7 @@ class WindfreakWindow(QMainWindow):
         
         self.show()
 
-        self.tcp_client = PyClient(host='129.234.190.164',port=8631,name='mwcontrol')
+        self.tcp_client = PyClient(host='192.168.23.10',port=8631,name='mwcontrol')
         # self.tcp_client = PyClient(host='localhost',port=8631,name='MWG')
 
         self.tcp_client.start()
@@ -479,7 +479,7 @@ class ChannelController(QWidget):
 
 '''
         super().__init__()
-        self.tcp_client = PyClient(host='129.234.190.164',port=8631,name='mwcontrol')
+        self.tcp_client = PyClient(host='192.168.23.10',port=8631,name='mwcontrol')
         # self.tcp_client = PyClient(host='localhost',port=8631,name='MWG')
         self.tcp_client.start()
 
