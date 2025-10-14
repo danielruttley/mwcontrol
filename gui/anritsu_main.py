@@ -305,13 +305,13 @@ class AnritsuWindow(MainWindow):
         elif num_freqs == 1:
             freq = self.data['freq (MHz)'][0]
             power = self.data['amp (dBm)'][0]
-            send_str = 'F0 {:.7f} GH L0 {:.2f} DM'.format(freq/1e3,power)
+            send_str = 'F0 {:.9f} MH L0 {:.2f} DM'.format(freq,power)
             
         else:
             freqs_str = ''
             powers_str = ''
             for freq, power in zip(self.data['freq (MHz)'],self.data['amp (dBm)']):
-                freqs_str += '{:.7f} GH, '.format(freq/1e3)
+                freqs_str += '{:.9f} MH, '.format(freq)
                 powers_str += '{:.2f} DM, '.format(power)
             freqs_str = freqs_str[:-2]
             powers_str = powers_str[:-2]
